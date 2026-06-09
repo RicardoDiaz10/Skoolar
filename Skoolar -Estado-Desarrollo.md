@@ -33,11 +33,12 @@
 | Indicador | Valor |
 |---|---|
 | Fase en curso | Fase 0 — Fundaciones |
-| Paso actual | Estructura base del monorepo creada; siguiente: scaffolding del backend (NestJS) |
-| % avance global estimado | ~3% |
+| Paso actual | Backend NestJS scaffoldeado y verificado; siguiente: frontend (React + Vite) y configuración de entorno |
+| % avance global estimado | ~6% |
 | Repositorio inicializado | ✅ Sí (rama `main`) |
 | Estructura monorepo (pnpm workspaces) | ✅ Sí |
-| Entorno de desarrollo configurado | 🟡 Parcial (falta backend/frontend) |
+| Backend NestJS (`apps/api`) | ✅ Sí (responde en `localhost:3000`) |
+| Entorno de desarrollo configurado | 🟡 Parcial (falta frontend) |
 | Base de datos / modelo Prisma | ⬜ No |
 | Autenticación | ⬜ No |
 | Primer despliegue | ⬜ No |
@@ -52,8 +53,8 @@
 - 🟡 Setup de monorepo, Docker, CI/CD, linters, estructura de carpetas
   - ✅ Repositorio Git inicializado (rama `main`)
   - ✅ Estructura monorepo con pnpm workspaces (`apps/*`, `packages/*`)
-  - ✅ Archivos raíz: `package.json`, `pnpm-workspace.yaml`, `.gitignore`, `.npmrc`, `README.md`
-  - ⬜ Backend NestJS (`apps/api`)
+  - ✅ Archivos raíz: `package.json`, `pnpm-workspace.yaml`, `.gitignore`, `.npmrc`, `.gitattributes`, `README.md`
+  - ✅ Backend NestJS 11 + TypeScript en `apps/api` (paquete `@skoolar/api`); arranca y responde en `localhost:3000`
   - ⬜ Frontend React + Vite (`apps/web`)
   - ⬜ Docker / Docker Compose (PostgreSQL + Redis)
   - ⬜ CI/CD (GitHub Actions) + linters
@@ -97,8 +98,20 @@
 
 ```
 skoolar/
-├── apps/              (vacío por ahora → api y web)
+├── apps/
+│   ├── api/           Backend NestJS (@skoolar/api)
+│   │   ├── src/
+│   │   │   ├── main.ts            Arranque (escucha en :3000)
+│   │   │   ├── app.module.ts      Módulo raíz
+│   │   │   ├── app.controller.ts  Rutas HTTP
+│   │   │   └── app.service.ts     Lógica de negocio
+│   │   ├── test/                  Pruebas e2e
+│   │   ├── nest-cli.json
+│   │   ├── tsconfig.json
+│   │   └── package.json
+│   └── web/           (pendiente → React + Vite)
 ├── packages/          (vacío por ahora → código compartido)
+├── pnpm-lock.yaml     Candado de versiones exactas
 ├── .gitignore
 ├── .npmrc             (engine-strict)
 ├── package.json       (raíz del workspace, pnpm)
@@ -108,7 +121,7 @@ skoolar/
 └── Skoolar -Estado-Desarrollo.md
 ```
 
-**Módulos backend (NestJS) implementados:** _ninguno aún_
+**Módulos backend (NestJS) implementados:** solo el `AppModule` de demostración (responde "Hello World!"). Los módulos de dominio (auth, alumnos, notas, etc.) aún no existen.
 
 **Vistas / rutas frontend (React) implementadas:** _ninguna aún_
 
@@ -122,6 +135,8 @@ skoolar/
 |---|---|---|---|
 | 2026-06-09 | Monorepo con **pnpm workspaces** | Rápido, eficiente en disco y estándar para monorepos; pnpm ya estaba instalado (v11.5.1) | Toda la organización del repo |
 | 2026-06-09 | Node fijado a **>=20** en `engines` | El entorno tiene Node 24; se exige mínimo 20 LTS para compatibilidad | Backend y frontend |
+| 2026-06-09 | Backend con **NestJS 11** generado vía CLI oficial (`apps/api`, paquete `@skoolar/api`), TypeScript en modo estricto | Estructura modular probada, soporte TS de fábrica | Todo el backend |
+| 2026-06-09 | Build de `unrs-resolver` autorizado en `pnpm-workspace.yaml` (`allowBuilds`) | pnpm bloquea scripts de instalación por seguridad; este es necesario para ESLint | Tooling de linting |
 
 ---
 
@@ -153,5 +168,6 @@ skoolar/
 
 | Fecha | Avance | Fase / Paso |
 |---|---|---|
+| 2026-06-09 | Backend NestJS 11 generado en `apps/api` (`@skoolar/api`), dependencias instaladas con pnpm y servidor verificado respondiendo en `localhost:3000`. | Fase 0 — Fundaciones |
 | 2026-06-09 | Inicialización del repositorio Git y estructura base del monorepo (pnpm workspaces): `apps/`, `packages/` y archivos raíz de configuración. | Fase 0 — Fundaciones |
 | 2026-06-09 | Creación de la documentación inicial del proyecto (plan + este registro de estado). Definición del nombre del producto: **Skoolar**. | Pre-desarrollo |
