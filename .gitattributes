@@ -1,0 +1,18 @@
+# Normaliza los finales de línea: Git guarda siempre LF en el repositorio.
+# Evita los avisos "LF will be replaced by CRLF" y mantiene consistencia
+# entre Windows, Mac y Linux.
+* text=auto eol=lf
+
+# Archivos que deben conservar CRLF (scripts de Windows)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Archivos binarios: Git no los toca
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

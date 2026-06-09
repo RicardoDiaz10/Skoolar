@@ -1,0 +1,14 @@
+{
+  "name": "skoolar",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Skoolar — Plataforma SaaS multi-tenant de gestión escolar",
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "echo \"Aún no hay apps. Se configurará en los siguientes pasos.\"",
+    "build": "echo \"Aún no hay apps. Se configurará en los siguientes pasos.\""
+  }
+}
