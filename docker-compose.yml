@@ -1,0 +1,47 @@
+# Servicios de infraestructura para desarrollo local de Skoolar.
+# Levanta PostgreSQL (base de datos) y Redis (cache / colas BullMQ) en contenedores.
+# Uso:  docker compose up -d      (arranca en segundo plano)
+#       docker compose down       (detiene; los datos persisten en los volúmenes)
+#       docker compose down -v    (detiene y BORRA los datos)
+
+services:
+  # Base de datos principal de la aplicación.
+  postgres:
+    image: postgres:16-alpine          # PostgreSQL 16, imagen ligera basada en Alpine Linux
+    container_name: skoolar-postgres
+    restart: unless-stopped            # se reinicia solo salvo que tú lo pares
+    environment:
+      POSTGRES_USER: skoolar
+      POSTGRES_PASSWORD: skoolar_dev    # contraseña SOLO para desarrollo local
+      POSTGRES_DB: skoolar
+    ports:
+      # Host 5433 -> contenedor 5432. Se usa 5433 porque el 5432 del host ya está
+      # ocupado por un PostgreSQL 18 instalado de forma nativa en Windows.
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # persiste los datos entre reinicios
+    healthcheck:                        # Docker comprueba que la BD está realmente lista
+      test: ["CMD-SHELL", "pg_isready -U skoolar -d skoolar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Almacén en memoria para cache y colas de trabajo (BullMQ).
+  redis:
+    image: redis:7-alpine              # Redis 7, imagen ligera
+    container_name: skoolar-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"                     # puerto estándar de Redis
+    volumes:
+      - redis_data:/data                # persiste los datos de Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Volúmenes con nombre: Docker los gestiona y sobreviven a `docker compose down`.
+volumes:
+  postgres_data:
+  redis_data:
