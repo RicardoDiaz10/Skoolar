@@ -270,7 +270,7 @@ Desarrollar una plataforma web SaaS que permita a instituciones educativas gesti
 
 | Componente | Tecnología | Justificación |
 |---|---|---|
-| Framework | **React 18 + Vite** | Rapidez de desarrollo y ecosistema |
+| Framework | **React 19 + Vite** | Rapidez de desarrollo y ecosistema (la CLI oficial ya instala React 19, versión estable actual) |
 | Lenguaje | **TypeScript** | Consistencia con el backend |
 | Estado servidor | **TanStack Query** | Caché, sincronización y estados de carga sin boilerplate |
 | Estado global | **Zustand** | Ligero, para sesión y UI |

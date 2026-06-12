@@ -33,12 +33,15 @@
 | Indicador | Valor |
 |---|---|
 | Fase en curso | Fase 0 — Fundaciones |
-| Paso actual | Backend NestJS scaffoldeado y verificado; siguiente: frontend (React + Vite) y configuración de entorno |
-| % avance global estimado | ~6% |
+| Paso actual | Pantalla de login (UI) lista con Tailwind; siguiente: base de datos (Prisma + PostgreSQL con Docker) y conectar el login al backend |
+| % avance global estimado | ~10% |
 | Repositorio inicializado | ✅ Sí (rama `main`) |
 | Estructura monorepo (pnpm workspaces) | ✅ Sí |
 | Backend NestJS (`apps/api`) | ✅ Sí (responde en `localhost:3000`) |
-| Entorno de desarrollo configurado | 🟡 Parcial (falta frontend) |
+| Frontend React + Vite (`apps/web`) | ✅ Sí (sirve en `localhost:5173`) |
+| Estilos (Tailwind CSS v4) | ✅ Sí |
+| Pantalla de login (solo UI) | ✅ Sí (aún sin conectar al backend) |
+| Entorno de desarrollo configurado | 🟡 Parcial (falta base de datos y Docker) |
 | Base de datos / modelo Prisma | ⬜ No |
 | Autenticación | ⬜ No |
 | Primer despliegue | ⬜ No |
@@ -55,7 +58,8 @@
   - ✅ Estructura monorepo con pnpm workspaces (`apps/*`, `packages/*`)
   - ✅ Archivos raíz: `package.json`, `pnpm-workspace.yaml`, `.gitignore`, `.npmrc`, `.gitattributes`, `README.md`
   - ✅ Backend NestJS 11 + TypeScript en `apps/api` (paquete `@skoolar/api`); arranca y responde en `localhost:3000`
-  - ⬜ Frontend React + Vite (`apps/web`)
+  - ✅ Frontend React 19 + Vite + TypeScript en `apps/web` (paquete `@skoolar/web`); sirve en `localhost:5173`
+  - ✅ Tailwind CSS v4 configurado en el frontend (plugin de Vite)
   - ⬜ Docker / Docker Compose (PostgreSQL + Redis)
   - ⬜ CI/CD (GitHub Actions) + linters
 - ⬜ Modelo de datos completo en Prisma + migraciones iniciales
@@ -109,8 +113,21 @@ skoolar/
 │   │   ├── nest-cli.json
 │   │   ├── tsconfig.json
 │   │   └── package.json
-│   └── web/           (pendiente → React + Vite)
+│   └── web/           Frontend React + Vite (@skoolar/web)
+│       ├── src/
+│       │   ├── main.tsx           Punto de entrada (monta React en #root)
+│       │   ├── App.tsx            Componente raíz (renderiza Login)
+│       │   ├── pages/
+│       │   │   └── Login.tsx      Pantalla de inicio de sesión (UI)
+│       │   ├── index.css          Importa Tailwind + reset a pantalla completa
+│       │   └── assets/
+│       │       └── institucion.svg  Imagen placeholder de la institución
+│       ├── index.html             HTML base (título "Skoolar")
+│       ├── vite.config.ts         Plugins: React + Tailwind
+│       ├── tsconfig*.json
+│       └── package.json
 ├── packages/          (vacío por ahora → código compartido)
+├── .claude/launch.json  Config para arrancar el dev server
 ├── pnpm-lock.yaml     Candado de versiones exactas
 ├── .gitignore
 ├── .npmrc             (engine-strict)
@@ -123,7 +140,10 @@ skoolar/
 
 **Módulos backend (NestJS) implementados:** solo el `AppModule` de demostración (responde "Hello World!"). Los módulos de dominio (auth, alumnos, notas, etc.) aún no existen.
 
-**Vistas / rutas frontend (React) implementadas:** _ninguna aún_
+**Vistas / rutas frontend (React) implementadas:**
+- **Login** (`src/pages/Login.tsx`): pantalla de inicio de sesión a pantalla completa, rejilla de 6 columnas → formulario (usuario, contraseña, botón "Ingresar", enlace "¿Olvidó su contraseña?") en 2/6 a la izquierda e imagen de la institución en 4/6 a la derecha. Sin scroll a ningún tamaño de ventana. Solo UI: el formulario aún no se conecta al backend (hay un `TODO` en el `handleSubmit`).
+
+Aún no hay router (React Router) ni más vistas.
 
 ---
 
@@ -137,6 +157,8 @@ skoolar/
 | 2026-06-09 | Node fijado a **>=20** en `engines` | El entorno tiene Node 24; se exige mínimo 20 LTS para compatibilidad | Backend y frontend |
 | 2026-06-09 | Backend con **NestJS 11** generado vía CLI oficial (`apps/api`, paquete `@skoolar/api`), TypeScript en modo estricto | Estructura modular probada, soporte TS de fábrica | Todo el backend |
 | 2026-06-09 | Build de `unrs-resolver` autorizado en `pnpm-workspace.yaml` (`allowBuilds`) | pnpm bloquea scripts de instalación por seguridad; este es necesario para ESLint | Tooling de linting |
+| 2026-06-09 | Frontend con **React 19 + Vite** generado vía `create vite` (`apps/web`, paquete `@skoolar/web`) | La herramienta oficial ya instala React 19 (estable y recomendada) | Todo el frontend |
+| 2026-06-09 | **Tailwind CSS v4** como sistema de estilos (plugin `@tailwindcss/vite`) | Definido en el plan; clases de utilidad para desarrollo rápido | Todo el frontend |
 
 ---
 
@@ -146,7 +168,7 @@ skoolar/
 
 | Fecha | Cambio | Razón | ¿Documento de proyecto actualizado? |
 |---|---|---|---|
-| — | — | — | — |
+| 2026-06-09 | **React 18 → React 19** en el frontend | `create vite` instala React 19 por defecto; es la versión estable actual y recomendada | ✅ Sí (sección 7.2) |
 
 ---
 
@@ -168,6 +190,8 @@ skoolar/
 
 | Fecha | Avance | Fase / Paso |
 |---|---|---|
+| 2026-06-09 | Tailwind CSS v4 configurado y primera pantalla real: **login** (`src/pages/Login.tsx`) con layout 2/6 (formulario) y 4/6 (imagen de la institución), a pantalla completa sin scroll. Imagen placeholder en `assets/institucion.svg`. | Fase 0 — Fundaciones |
+| 2026-06-09 | Frontend React 19 + Vite generado en `apps/web` (`@skoolar/web`), dependencias instaladas y dev server verificado sirviendo en `localhost:5173`. Título de la app cambiado a "Skoolar". | Fase 0 — Fundaciones |
 | 2026-06-09 | Backend NestJS 11 generado en `apps/api` (`@skoolar/api`), dependencias instaladas con pnpm y servidor verificado respondiendo en `localhost:3000`. | Fase 0 — Fundaciones |
 | 2026-06-09 | Inicialización del repositorio Git y estructura base del monorepo (pnpm workspaces): `apps/`, `packages/` y archivos raíz de configuración. | Fase 0 — Fundaciones |
 | 2026-06-09 | Creación de la documentación inicial del proyecto (plan + este registro de estado). Definición del nombre del producto: **Skoolar**. | Pre-desarrollo |
