@@ -1,0 +1,73 @@
+// Esquema de datos de Skoolar (Prisma).
+// Doc del modelo completo: ver sección 8 de "Skoolar -Documentacion-Proyecto.md".
+//
+// Estrategia multi-tenant: base de datos compartida con discriminador `schoolId`
+// en cada tabla del dominio. El aislamiento entre colegios se garantiza en el
+// backend (middleware que inyecta el tenant desde el JWT + scopes en Prisma).
+//
+// Esta primera migración define solo los cimientos: School (el tenant) y User.
+// El resto de entidades (años, grados, alumnos, notas, planillas…) se añaden por fases.
+
+generator client {
+  // Generador clásico: emite el cliente en node_modules y se importa como
+  // "@prisma/client". Es el formato CommonJS que NestJS consume sin fricción.
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // La URL de conexión vive en prisma.config.ts (Prisma 7 ya no la admite aquí).
+  provider = "postgresql"
+}
+
+// Roles del sistema (RBAC). Ver sección 4 de la documentación del proyecto.
+enum UserRole {
+  SUPER_ADMIN // Plataforma: gestiona los colegios (tenants). No pertenece a ningún colegio.
+  ADMIN // Administra un colegio concreto.
+  TEACHER // Docente.
+  STUDENT // Alumno.
+  GUARDIAN // Apoderado.
+}
+
+// Estado de activación, reutilizable para colegios y usuarios.
+enum Status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+// School = el tenant. Cada colegio cliente vive aislado dentro de la plataforma.
+model School {
+  id        String   @id @default(uuid())
+  name      String // Nombre del colegio.
+  slug      String   @unique // Identificador para subdominio/espacio (p. ej. "san-jose").
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@map("schools")
+}
+
+// User = cualquier persona que inicia sesión, con su rol y su colegio.
+// El SUPER_ADMIN es de plataforma, por eso schoolId es opcional.
+model User {
+  id           String   @id @default(uuid())
+  schoolId     String? // Tenant al que pertenece. Nulo solo para SUPER_ADMIN.
+  email        String
+  passwordHash String // Hash de la contraseña (nunca se guarda en texto plano).
+  firstName    String
+  lastName     String
+  role         UserRole
+  status       Status   @default(ACTIVE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // El email es único DENTRO de cada colegio (una misma persona puede existir
+  // en varios colegios, p. ej. un apoderado con hijos en distintas sedes).
+  @@unique([schoolId, email])
+  @@index([schoolId])
+  @@map("users")
+}

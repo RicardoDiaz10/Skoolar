@@ -5,4 +5,6 @@ packages:
 # Dependencias autorizadas a ejecutar scripts de build (compilan binarios nativos).
 # pnpm los bloquea por defecto como protección contra cadena de suministro.
 allowBuilds:
+  '@prisma/engines': true
+  prisma: true
   unrs-resolver: true

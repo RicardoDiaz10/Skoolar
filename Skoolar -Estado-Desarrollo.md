@@ -8,7 +8,7 @@
 |---|---|
 | **Producto** | Skoolar |
 | **Documento** | Estado / Registro de avance |
-| **Última actualización** | 2026-06-09 |
+| **Última actualización** | 2026-06-12 |
 | **Fase actual** | Fase 0 — Fundaciones (en progreso) |
 | **Estado general** | 🟡 Desarrollo iniciado |
 
@@ -33,16 +33,18 @@
 | Indicador | Valor |
 |---|---|
 | Fase en curso | Fase 0 — Fundaciones |
-| Paso actual | Pantalla de login (UI) lista con Tailwind; siguiente: base de datos (Prisma + PostgreSQL con Docker) y conectar el login al backend |
-| % avance global estimado | ~10% |
+| Paso actual | Capa de datos lista: PostgreSQL + Redis en Docker, Prisma conectado a NestJS y primer modelo (School + User) migrado. Siguiente: autenticación (JWT + hash de contraseñas) y conectar el login real |
+| % avance global estimado | ~18% |
 | Repositorio inicializado | ✅ Sí (rama `main`) |
 | Estructura monorepo (pnpm workspaces) | ✅ Sí |
 | Backend NestJS (`apps/api`) | ✅ Sí (responde en `localhost:3000`) |
 | Frontend React + Vite (`apps/web`) | ✅ Sí (sirve en `localhost:5173`) |
 | Estilos (Tailwind CSS v4) | ✅ Sí |
 | Pantalla de login (solo UI) | ✅ Sí (aún sin conectar al backend) |
-| Entorno de desarrollo configurado | 🟡 Parcial (falta base de datos y Docker) |
-| Base de datos / modelo Prisma | ⬜ No |
+| Entorno de desarrollo configurado | 🟡 Parcial (falta CI/CD y linters comunes) |
+| Infraestructura local (Docker Compose) | ✅ Sí (PostgreSQL 16 en host `:5433` + Redis 7 en `:6379`) |
+| Base de datos / modelo Prisma | 🟡 Parcial (School + User migrados; resto del dominio pendiente) |
+| API conectada a la BD | ✅ Sí (endpoint `/health` consulta la BD) |
 | Autenticación | ⬜ No |
 | Primer despliegue | ⬜ No |
 
@@ -60,9 +62,13 @@
   - ✅ Backend NestJS 11 + TypeScript en `apps/api` (paquete `@skoolar/api`); arranca y responde en `localhost:3000`
   - ✅ Frontend React 19 + Vite + TypeScript en `apps/web` (paquete `@skoolar/web`); sirve en `localhost:5173`
   - ✅ Tailwind CSS v4 configurado en el frontend (plugin de Vite)
-  - ⬜ Docker / Docker Compose (PostgreSQL + Redis)
+  - ✅ Docker / Docker Compose (PostgreSQL 16 + Redis 7) — `docker-compose.yml` en la raíz
   - ⬜ CI/CD (GitHub Actions) + linters
-- ⬜ Modelo de datos completo en Prisma + migraciones iniciales
+- 🟡 Modelo de datos en Prisma + migraciones iniciales
+  - ✅ Prisma 7 instalado y conectado a NestJS (driver adapter `@prisma/adapter-pg`)
+  - ✅ Primera migración: modelos `School` (tenant) y `User` (con rol RBAC), enums `UserRole` y `Status`
+  - ✅ Endpoint `/health` que verifica conectividad API ↔ BD
+  - ⬜ Resto de entidades del dominio (años, grados, alumnos, notas, planillas…)
 - ⬜ Autenticación JWT, RBAC y middleware multi-tenant
 - ⬜ Seeds de datos de prueba realistas
 
@@ -104,12 +110,20 @@
 skoolar/
 ├── apps/
 │   ├── api/           Backend NestJS (@skoolar/api)
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma      Modelo de datos (School, User, enums)
+│   │   │   └── migrations/        Migraciones SQL versionadas
 │   │   ├── src/
 │   │   │   ├── main.ts            Arranque (escucha en :3000)
-│   │   │   ├── app.module.ts      Módulo raíz
-│   │   │   ├── app.controller.ts  Rutas HTTP
-│   │   │   └── app.service.ts     Lógica de negocio
+│   │   │   ├── app.module.ts      Módulo raíz (carga .env + PrismaModule)
+│   │   │   ├── app.controller.ts  Rutas HTTP (incluye GET /health)
+│   │   │   ├── app.service.ts     Lógica de negocio + healthCheck()
+│   │   │   └── prisma/
+│   │   │       ├── prisma.module.ts   Módulo global de Prisma
+│   │   │       └── prisma.service.ts  Cliente Prisma (adapter pg)
 │   │   ├── test/                  Pruebas e2e
+│   │   ├── prisma.config.ts       Config de Prisma 7 (URL de la BD vía dotenv)
+│   │   ├── .env / .env.example    Variables de entorno (la real no se versiona)
 │   │   ├── nest-cli.json
 │   │   ├── tsconfig.json
 │   │   └── package.json
@@ -127,6 +141,7 @@ skoolar/
 │       ├── tsconfig*.json
 │       └── package.json
 ├── packages/          (vacío por ahora → código compartido)
+├── docker-compose.yml   PostgreSQL 16 (host :5433) + Redis 7 (:6379)
 ├── .claude/launch.json  Config para arrancar el dev server
 ├── pnpm-lock.yaml     Candado de versiones exactas
 ├── .gitignore
@@ -138,7 +153,7 @@ skoolar/
 └── Skoolar -Estado-Desarrollo.md
 ```
 
-**Módulos backend (NestJS) implementados:** solo el `AppModule` de demostración (responde "Hello World!"). Los módulos de dominio (auth, alumnos, notas, etc.) aún no existen.
+**Módulos backend (NestJS) implementados:** `AppModule` (raíz, carga configuración y Prisma), `PrismaModule` (global, expone el cliente de BD). El `AppController` mantiene la ruta de demostración (`/`) y añade `/health` (comprueba la conexión a la BD). Los módulos de dominio (auth, alumnos, notas, etc.) aún no existen.
 
 **Vistas / rutas frontend (React) implementadas:**
 - **Login** (`src/pages/Login.tsx`): pantalla de inicio de sesión a pantalla completa, rejilla de 6 columnas → formulario (usuario, contraseña, botón "Ingresar", enlace "¿Olvidó su contraseña?") en 2/6 a la izquierda e imagen de la institución en 4/6 a la derecha. Sin scroll a ningún tamaño de ventana. Solo UI: el formulario aún no se conecta al backend (hay un `TODO` en el `handleSubmit`).
@@ -159,6 +174,11 @@ Aún no hay router (React Router) ni más vistas.
 | 2026-06-09 | Build de `unrs-resolver` autorizado en `pnpm-workspace.yaml` (`allowBuilds`) | pnpm bloquea scripts de instalación por seguridad; este es necesario para ESLint | Tooling de linting |
 | 2026-06-09 | Frontend con **React 19 + Vite** generado vía `create vite` (`apps/web`, paquete `@skoolar/web`) | La herramienta oficial ya instala React 19 (estable y recomendada) | Todo el frontend |
 | 2026-06-09 | **Tailwind CSS v4** como sistema de estilos (plugin `@tailwindcss/vite`) | Definido en el plan; clases de utilidad para desarrollo rápido | Todo el frontend |
+| 2026-06-12 | **PostgreSQL en el puerto host `5433`** (no el estándar `5432`) | El equipo ya tiene un PostgreSQL 18 nativo ocupando el `5432`; se evita el conflicto sin tocar la instalación existente | `docker-compose.yml`, `DATABASE_URL` |
+| 2026-06-12 | **Generador `prisma-client-js`** (clásico) en vez del nuevo `prisma-client` | El generador nuevo de Prisma 7 emite ESM y choca con el CommonJS de NestJS; el clásico se importa desde `@prisma/client` sin fricción | Backend |
+| 2026-06-12 | Cliente Prisma con **driver adapter `@prisma/adapter-pg`** | Prisma 7 ya no admite la URL en `schema.prisma`; el cliente en runtime requiere un adapter que recibe la cadena de conexión | `PrismaService` |
+| 2026-06-12 | `schoolId` **opcional** en `User` | El rol `SUPER_ADMIN` es de plataforma y no pertenece a ningún colegio; email único por `[schoolId, email]` | Modelo `User` |
+| 2026-06-12 | **`@nestjs/config`** para cargar variables de entorno | NestJS no lee `.env` por sí solo; se centraliza la configuración de forma global | Backend |
 
 ---
 
@@ -190,6 +210,7 @@ Aún no hay router (React Router) ni más vistas.
 
 | Fecha | Avance | Fase / Paso |
 |---|---|---|
+| 2026-06-12 | **Capa de datos completa:** `docker-compose.yml` con PostgreSQL 16 (host `:5433`) y Redis 7; Prisma 7 instalado y conectado a NestJS vía `PrismaService` (adapter pg); primera migración con modelos `School` y `User`; endpoint `/health` verificado consultando la BD (`{status:ok, database:connected, schools:0}`). | Fase 0 — Fundaciones |
 | 2026-06-09 | Tailwind CSS v4 configurado y primera pantalla real: **login** (`src/pages/Login.tsx`) con layout 2/6 (formulario) y 4/6 (imagen de la institución), a pantalla completa sin scroll. Imagen placeholder en `assets/institucion.svg`. | Fase 0 — Fundaciones |
 | 2026-06-09 | Frontend React 19 + Vite generado en `apps/web` (`@skoolar/web`), dependencias instaladas y dev server verificado sirviendo en `localhost:5173`. Título de la app cambiado a "Skoolar". | Fase 0 — Fundaciones |
 | 2026-06-09 | Backend NestJS 11 generado en `apps/api` (`@skoolar/api`), dependencias instaladas con pnpm y servidor verificado respondiendo en `localhost:3000`. | Fase 0 — Fundaciones |
