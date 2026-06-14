@@ -22,14 +22,15 @@ jobs:
       - name: Descargar el código
         uses: actions/checkout@v4
 
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Instalar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+
+      # Corepack (incluido en Node) activa la versión de pnpm declarada en el
+      # campo "packageManager" del package.json. Más fiable que detectarla aparte.
+      - name: Habilitar pnpm con Corepack
+        run: corepack enable
 
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
