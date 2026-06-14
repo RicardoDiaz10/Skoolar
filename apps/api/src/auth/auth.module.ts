@@ -19,9 +19,9 @@ import { RolesGuard } from './roles.guard';
         signOptions: {
           // Acepta formatos como "15m", "7d", "1h". El tipo exacto se deriva del
           // propio @nestjs/jwt para no depender de los tipos del paquete "ms".
-          expiresIn: config.getOrThrow<string>(
-            'JWT_EXPIRES_IN',
-          ) as NonNullable<JwtModuleOptions['signOptions']>['expiresIn'],
+          expiresIn: config.getOrThrow<string>('JWT_EXPIRES_IN') as NonNullable<
+            JwtModuleOptions['signOptions']
+          >['expiresIn'],
         },
       }),
     }),

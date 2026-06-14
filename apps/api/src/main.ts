@@ -25,4 +25,5 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+// `void` indica explícitamente que ignoramos la promesa (arranque de la app).
+void bootstrap();

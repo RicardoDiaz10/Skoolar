@@ -1,0 +1,53 @@
+# Integración Continua (CI): verifica el código en cada push y pull request a main.
+# Ejecuta lint, build y tests del backend y del frontend. No despliega nada (eso es CD).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Si llegan varios pushes seguidos, cancela las ejecuciones anteriores en curso.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificacion:
+    name: Lint, build y tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Generar el cliente de Prisma
+        run: pnpm --filter @skoolar/api exec prisma generate
+
+      - name: Lint del backend
+        run: pnpm --filter @skoolar/api exec eslint src
+
+      - name: Lint del frontend
+        run: pnpm --filter @skoolar/web lint
+
+      - name: Build del backend
+        run: pnpm --filter @skoolar/api build
+
+      - name: Tests del backend
+        run: pnpm --filter @skoolar/api test
+
+      - name: Build del frontend
+        run: pnpm --filter @skoolar/web build

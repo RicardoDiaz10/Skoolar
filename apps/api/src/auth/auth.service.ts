@@ -73,7 +73,7 @@ export class AuthService {
 
     // Guardamos el jti en Redis con el mismo tiempo de vida que el token.
     // Si el jti no está en Redis, el refresh token se considera inválido.
-    const { exp } = this.jwt.decode(refreshToken) as { exp: number };
+    const { exp } = this.jwt.decode<{ exp: number }>(refreshToken);
     const ttlSeconds = exp - Math.floor(Date.now() / 1000);
     await this.redis.set(this.refreshKey(jti), user.id, ttlSeconds);
 
