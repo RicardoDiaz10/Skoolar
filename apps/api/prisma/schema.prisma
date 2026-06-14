@@ -19,13 +19,13 @@ datasource db {
   provider = "postgresql"
 }
 
-// Roles del sistema (RBAC). Ver sección 4 de la documentación del proyecto.
+// Roles del sistema (RBAC). De momento solo 3 (ver sección 4 de la documentación).
+// Otros roles previstos (SUPER_ADMIN de plataforma, GUARDIAN/apoderado) se añadirán
+// cuando lleguen sus fases.
 enum UserRole {
-  SUPER_ADMIN // Plataforma: gestiona los colegios (tenants). No pertenece a ningún colegio.
   ADMIN // Administra un colegio concreto.
-  TEACHER // Docente.
-  STUDENT // Alumno.
-  GUARDIAN // Apoderado.
+  TEACHER // Docente (profesor).
+  STUDENT // Alumno (estudiante).
 }
 
 // Estado de activación, reutilizable para colegios y usuarios.
@@ -50,10 +50,9 @@ model School {
 }
 
 // User = cualquier persona que inicia sesión, con su rol y su colegio.
-// El SUPER_ADMIN es de plataforma, por eso schoolId es opcional.
 model User {
   id           String   @id @default(uuid())
-  schoolId     String? // Tenant al que pertenece. Nulo solo para SUPER_ADMIN.
+  schoolId     String // Tenant al que pertenece. Todo usuario pertenece a un colegio.
   email        String
   passwordHash String // Hash de la contraseña (nunca se guarda en texto plano).
   firstName    String
@@ -63,7 +62,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   // El email es único DENTRO de cada colegio (una misma persona puede existir
   // en varios colegios, p. ej. un apoderado con hijos en distintas sedes).

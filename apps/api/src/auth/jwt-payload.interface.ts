@@ -6,5 +6,5 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
-  schoolId: string | null;
+  schoolId: string;
 }

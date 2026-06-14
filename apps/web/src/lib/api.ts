@@ -9,11 +9,15 @@ export interface AuthUser {
   firstName: string
   lastName: string
   role: string
-  schoolId: string | null
+  schoolId: string
 }
 
-export interface LoginResponse {
+export interface AuthTokens {
   accessToken: string
+  refreshToken: string
+}
+
+export interface LoginResponse extends AuthTokens {
   user: AuthUser
 }
 
@@ -49,4 +53,26 @@ export async function login(
   }
 
   return res.json() as Promise<LoginResponse>
+}
+
+// Renueva la sesión con el refresh token. Devuelve un par de tokens nuevo.
+export async function refresh(refreshToken: string): Promise<LoginResponse> {
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  })
+  if (!res.ok) {
+    throw new ApiError('La sesión expiró. Vuelve a iniciar sesión.', res.status)
+  }
+  return res.json() as Promise<LoginResponse>
+}
+
+// Cierra la sesión: revoca el refresh token en el servidor.
+export async function logout(refreshToken: string): Promise<void> {
+  await fetch(`${API_URL}/auth/logout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  })
 }

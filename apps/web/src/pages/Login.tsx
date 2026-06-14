@@ -25,9 +25,11 @@ export default function Login() {
     setError(null)
     setCargando(true)
     try {
-      const { accessToken, user } = await login(email, contrasena)
-      // Guardamos el token para futuras peticiones autenticadas.
+      const { accessToken, refreshToken, user } = await login(email, contrasena)
+      // Guardamos ambos tokens: el access para las peticiones y el refresh
+      // para renovar la sesión cuando el access caduque.
       localStorage.setItem('skoolar_token', accessToken)
+      localStorage.setItem('skoolar_refresh_token', refreshToken)
       setUsuario(user)
     } catch (err) {
       setError(

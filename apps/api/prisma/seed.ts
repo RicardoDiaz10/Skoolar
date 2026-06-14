@@ -22,26 +22,31 @@ async function main() {
     create: { name: 'Colegio Demo', slug: 'colegio-demo' },
   });
 
-  // 2) Usuario administrador del colegio, con contraseña hasheada.
-  const passwordHash = await bcrypt.hash('admin1234', SALT_ROUNDS);
-  const admin = await prisma.user.upsert({
-    where: {
-      schoolId_email: { schoolId: school.id, email: 'admin@demo.skoolar' },
-    },
-    update: {},
-    create: {
-      schoolId: school.id,
-      email: 'admin@demo.skoolar',
-      passwordHash,
-      firstName: 'Admin',
-      lastName: 'Demo',
-      role: 'ADMIN',
-    },
-  });
+  // 2) Un usuario de prueba por cada rol, con su contraseña hasheada.
+  const usuarios = [
+    { email: 'admin@demo.skoolar', pass: 'admin1234', role: 'ADMIN' as const, firstName: 'Admin', lastName: 'Demo' },
+    { email: 'profesor@demo.skoolar', pass: 'profesor1234', role: 'TEACHER' as const, firstName: 'Profe', lastName: 'Demo' },
+    { email: 'estudiante@demo.skoolar', pass: 'estudiante1234', role: 'STUDENT' as const, firstName: 'Estu', lastName: 'Demo' },
+  ];
 
   console.log('Seed completado:');
   console.log(`  Colegio: ${school.name} (${school.slug})`);
-  console.log(`  Admin:   ${admin.email}  /  contraseña: admin1234`);
+  for (const u of usuarios) {
+    const passwordHash = await bcrypt.hash(u.pass, SALT_ROUNDS);
+    await prisma.user.upsert({
+      where: { schoolId_email: { schoolId: school.id, email: u.email } },
+      update: {},
+      create: {
+        schoolId: school.id,
+        email: u.email,
+        passwordHash,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        role: u.role,
+      },
+    });
+    console.log(`  ${u.role.padEnd(7)} ${u.email}  /  contraseña: ${u.pass}`);
+  }
 }
 
 main()
