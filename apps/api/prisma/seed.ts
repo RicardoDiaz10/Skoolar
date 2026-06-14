@@ -1,11 +1,11 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
-// Script de datos de prueba (seed): crea un colegio y un usuario admin para
-// poder iniciar sesión en desarrollo. Es idempotente (usa upsert): se puede
-// ejecutar varias veces sin duplicar registros.
+// Script de datos de prueba (seed): crea dos colegios con sus usuarios para
+// poder iniciar sesión y probar el aislamiento multi-tenant en desarrollo.
+// Es idempotente (usa upsert): se puede ejecutar varias veces sin duplicar.
 //
 // Ejecutar:  pnpm --filter @skoolar/api db:seed
 
@@ -14,22 +14,26 @@ const prisma = new PrismaClient({ adapter });
 
 const SALT_ROUNDS = 12;
 
-async function main() {
-  // 1) Colegio de demostración (el tenant).
+interface SeedUser {
+  email: string;
+  pass: string;
+  role: UserRole;
+  firstName: string;
+  lastName: string;
+}
+
+// Crea (o reutiliza) un colegio con su lista de usuarios.
+async function seedSchool(
+  name: string,
+  slug: string,
+  usuarios: SeedUser[],
+): Promise<void> {
   const school = await prisma.school.upsert({
-    where: { slug: 'colegio-demo' },
+    where: { slug },
     update: {},
-    create: { name: 'Colegio Demo', slug: 'colegio-demo' },
+    create: { name, slug },
   });
 
-  // 2) Un usuario de prueba por cada rol, con su contraseña hasheada.
-  const usuarios = [
-    { email: 'admin@demo.skoolar', pass: 'admin1234', role: 'ADMIN' as const, firstName: 'Admin', lastName: 'Demo' },
-    { email: 'profesor@demo.skoolar', pass: 'profesor1234', role: 'TEACHER' as const, firstName: 'Profe', lastName: 'Demo' },
-    { email: 'estudiante@demo.skoolar', pass: 'estudiante1234', role: 'STUDENT' as const, firstName: 'Estu', lastName: 'Demo' },
-  ];
-
-  console.log('Seed completado:');
   console.log(`  Colegio: ${school.name} (${school.slug})`);
   for (const u of usuarios) {
     const passwordHash = await bcrypt.hash(u.pass, SALT_ROUNDS);
@@ -45,8 +49,24 @@ async function main() {
         role: u.role,
       },
     });
-    console.log(`  ${u.role.padEnd(7)} ${u.email}  /  contraseña: ${u.pass}`);
+    console.log(`    ${u.role.padEnd(7)} ${u.email}  /  contraseña: ${u.pass}`);
   }
+}
+
+async function main() {
+  console.log('Seed completado:');
+
+  // Colegio A: un usuario por cada rol.
+  await seedSchool('Colegio Demo', 'colegio-demo', [
+    { email: 'admin@demo.skoolar', pass: 'admin1234', role: 'ADMIN', firstName: 'Admin', lastName: 'Demo' },
+    { email: 'profesor@demo.skoolar', pass: 'profesor1234', role: 'TEACHER', firstName: 'Profe', lastName: 'Demo' },
+    { email: 'estudiante@demo.skoolar', pass: 'estudiante1234', role: 'STUDENT', firstName: 'Estu', lastName: 'Demo' },
+  ]);
+
+  // Colegio B: sirve para verificar el aislamiento multi-tenant.
+  await seedSchool('Colegio Norte', 'colegio-norte', [
+    { email: 'admin@norte.skoolar', pass: 'admin1234', role: 'ADMIN', firstName: 'Admin', lastName: 'Norte' },
+  ]);
 }
 
 main()

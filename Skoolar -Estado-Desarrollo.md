@@ -33,8 +33,8 @@
 | Indicador | Valor |
 |---|---|
 | Fase en curso | Fase 0 — Fundaciones |
-| Paso actual | Login funcional de punta a punta: backend `POST /auth/login` (JWT access token) + frontend conectado. Siguiente: refresh tokens, guards por rol (RBAC) y middleware multi-tenant |
-| % avance global estimado | ~25% |
+| Paso actual | Autenticación completa: login con access + refresh tokens (rotación en Redis), RBAC por rol y aislamiento multi-tenant verificado. Siguiente: CI/CD + linters para cerrar la Fase 0, o empezar la Fase 1 (dominio) |
+| % avance global estimado | ~32% |
 | Repositorio inicializado | ✅ Sí (rama `main`) |
 | Estructura monorepo (pnpm workspaces) | ✅ Sí |
 | Backend NestJS (`apps/api`) | ✅ Sí (responde en `localhost:3000`) |
@@ -45,7 +45,9 @@
 | Infraestructura local (Docker Compose) | ✅ Sí (PostgreSQL 16 en host `:5433` + Redis 7 en `:6379`) |
 | Base de datos / modelo Prisma | 🟡 Parcial (School + User migrados; resto del dominio pendiente) |
 | API conectada a la BD | ✅ Sí (endpoint `/health` consulta la BD) |
-| Autenticación | 🟡 Login con JWT (access token); faltan refresh tokens, RBAC y multi-tenant |
+| Autenticación | ✅ Access + refresh tokens (rotación en Redis), login real |
+| Roles (RBAC) | ✅ ADMIN / TEACHER / STUDENT con guard por rol |
+| Aislamiento multi-tenant | ✅ Verificado (consultas filtradas por `schoolId` del token) |
 | Primer despliegue | ⬜ No |
 
 > Reemplazar esta tabla con el estado real conforme avance el desarrollo.
@@ -69,14 +71,15 @@
   - ✅ Primera migración: modelos `School` (tenant) y `User` (con rol RBAC), enums `UserRole` y `Status`
   - ✅ Endpoint `/health` que verifica conectividad API ↔ BD
   - ⬜ Resto de entidades del dominio (años, grados, alumnos, notas, planillas…)
-- 🟡 Autenticación JWT, RBAC y middleware multi-tenant
+- ✅ Autenticación JWT, RBAC y aislamiento multi-tenant
   - ✅ Login con email/contraseña: hash con bcryptjs + JWT access token (15 min)
   - ✅ Estrategia y guard de Passport (`JwtAuthGuard`) + ruta protegida `/auth/me`
-  - ✅ Frontend: login conectado a la API (guarda el token, muestra error/éxito)
-  - ⬜ Refresh tokens (con rotación en Redis)
-  - ⬜ Guards por rol (RBAC) y middleware multi-tenant por `schoolId`
+  - ✅ Frontend: login conectado a la API (guarda ambos tokens, muestra error/éxito)
+  - ✅ Refresh tokens (7 días) con rotación y revocación en Redis (`/auth/refresh`, `/auth/logout`)
+  - ✅ RBAC: decorador `@Roles`, `RolesGuard` (403 sin permiso) y `@CurrentUser`
+  - ✅ Multi-tenant: consultas filtradas por `schoolId` del token; aislamiento verificado con dos colegios
 - 🟡 Seeds de datos de prueba
-  - ✅ Seed inicial: un colegio (`Colegio Demo`) + un usuario admin
+  - ✅ Seed: dos colegios (`Colegio Demo` con un usuario por rol, `Colegio Norte` para probar aislamiento)
   - ⬜ Seeds realistas (alumnos, cursos, notas…) cuando exista el dominio
 
 ### Fase 1 — Núcleo Académico / MVP · ⬜ No iniciada
@@ -119,23 +122,33 @@ skoolar/
 │   ├── api/           Backend NestJS (@skoolar/api)
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma      Modelo de datos (School, User, enums)
-│   │   │   ├── seed.ts            Datos de prueba (colegio + admin)
+│   │   │   ├── seed.ts            Datos de prueba (dos colegios + usuarios por rol)
 │   │   │   └── migrations/        Migraciones SQL versionadas
 │   │   ├── src/
 │   │   │   ├── main.ts            Arranque (CORS + validación global, :3000)
-│   │   │   ├── app.module.ts      Módulo raíz (.env + Prisma + Auth)
+│   │   │   ├── app.module.ts      Módulo raíz (.env + Prisma + Redis + Auth + Users)
 │   │   │   ├── app.controller.ts  Rutas HTTP (incluye GET /health)
 │   │   │   ├── app.service.ts     Lógica de negocio + healthCheck()
 │   │   │   ├── prisma/
 │   │   │   │   ├── prisma.module.ts   Módulo global de Prisma
 │   │   │   │   └── prisma.service.ts  Cliente Prisma (adapter pg)
-│   │   │   └── auth/
-│   │   │       ├── auth.module.ts        Configura JWT + Passport
-│   │   │       ├── auth.controller.ts    POST /auth/login, GET /auth/me
-│   │   │       ├── auth.service.ts       Valida credenciales y firma el JWT
-│   │   │       ├── jwt.strategy.ts       Estrategia Passport (verifica el token)
-│   │   │       ├── jwt-auth.guard.ts     Guard para rutas protegidas
-│   │   │       └── dto/login.dto.ts      Validación del cuerpo del login
+│   │   │   ├── redis/
+│   │   │   │   ├── redis.module.ts    Módulo global de Redis
+│   │   │   │   └── redis.service.ts   Cliente Redis (ioredis)
+│   │   │   ├── auth/
+│   │   │   │   ├── auth.module.ts        Configura JWT + Passport
+│   │   │   │   ├── auth.controller.ts    /auth/login, /refresh, /logout, /me, /admin-only
+│   │   │   │   ├── auth.service.ts       Valida credenciales, firma y rota tokens
+│   │   │   │   ├── jwt.strategy.ts       Estrategia Passport (verifica el token)
+│   │   │   │   ├── jwt-auth.guard.ts     Guard de autenticación (token válido)
+│   │   │   │   ├── roles.guard.ts        Guard de autorización por rol (RBAC)
+│   │   │   │   ├── roles.decorator.ts    Decorador @Roles
+│   │   │   │   ├── current-user.decorator.ts  Decorador @CurrentUser
+│   │   │   │   └── dto/                  Validación de login y refresh
+│   │   │   └── users/
+│   │   │       ├── users.module.ts       Módulo de usuarios
+│   │   │       ├── users.controller.ts   GET /users (admin, por colegio)
+│   │   │       └── users.service.ts      Consulta filtrada por schoolId (multi-tenant)
 │   │   ├── test/                  Pruebas e2e
 │   │   ├── prisma.config.ts       Config de Prisma 7 (URL de la BD vía dotenv)
 │   │   ├── .env / .env.example    Variables de entorno (la real no se versiona)
@@ -149,7 +162,7 @@ skoolar/
 │       │   ├── pages/
 │       │   │   └── Login.tsx      Login conectado a la API (JWT)
 │       │   ├── lib/
-│       │   │   └── api.ts         Cliente de la API (función login)
+│       │   │   └── api.ts         Cliente de la API (login, refresh, logout)
 │       │   ├── index.css          Importa Tailwind + reset a pantalla completa
 │       │   └── assets/
 │       │       └── institucion.svg  Imagen placeholder de la institución
@@ -170,10 +183,10 @@ skoolar/
 └── Skoolar -Estado-Desarrollo.md
 ```
 
-**Módulos backend (NestJS) implementados:** `AppModule` (raíz, carga configuración, Prisma y Auth), `PrismaModule` (global, expone el cliente de BD) y `AuthModule` (login con JWT). El `AppController` mantiene la ruta de demostración (`/`) y `/health`. Rutas de auth: `POST /auth/login` (público) y `GET /auth/me` (protegido por `JwtAuthGuard`). Los módulos de dominio (alumnos, notas, etc.) aún no existen.
+**Módulos backend (NestJS) implementados:** `AppModule` (raíz), `PrismaModule` y `RedisModule` (globales), `AuthModule` (login + tokens + RBAC) y `UsersModule` (listado por colegio). Rutas: `GET /` y `/health`; auth → `POST /auth/login`, `/auth/refresh`, `/auth/logout` (públicos), `GET /auth/me` (autenticado), `GET /auth/admin-only` (solo ADMIN); usuarios → `GET /users` (ADMIN, filtrado por `schoolId`). Los módulos de dominio (alumnos, notas, etc.) aún no existen.
 
 **Vistas / rutas frontend (React) implementadas:**
-- **Login** (`src/pages/Login.tsx`): pantalla de inicio de sesión a pantalla completa, rejilla de 6 columnas → formulario (correo, contraseña, botón "Ingresar", enlace "¿Olvidó su contraseña?") en 2/6 a la izquierda e imagen de la institución en 4/6 a la derecha. **Conectado al backend**: llama a `POST /auth/login` (vía `src/lib/api.ts`), guarda el token en `localStorage` y muestra estados de carga, error y éxito. Como aún no hay dashboard ni router, al iniciar sesión muestra un saludo provisional.
+- **Login** (`src/pages/Login.tsx`): pantalla de inicio de sesión a pantalla completa, rejilla de 6 columnas → formulario (correo, contraseña, botón "Ingresar", enlace "¿Olvidó su contraseña?") en 2/6 a la izquierda e imagen de la institución en 4/6 a la derecha. **Conectado al backend**: llama a `POST /auth/login` (vía `src/lib/api.ts`), guarda el access y el refresh token en `localStorage` y muestra estados de carga, error y éxito. Como aún no hay dashboard ni router, al iniciar sesión muestra un saludo provisional.
 
 Aún no hay router (React Router) ni más vistas (el dashboard llega en la Fase 1).
 
@@ -194,10 +207,14 @@ Aún no hay router (React Router) ni más vistas (el dashboard llega en la Fase 
 | 2026-06-12 | **PostgreSQL en el puerto host `5433`** (no el estándar `5432`) | El equipo ya tiene un PostgreSQL 18 nativo ocupando el `5432`; se evita el conflicto sin tocar la instalación existente | `docker-compose.yml`, `DATABASE_URL` |
 | 2026-06-12 | **Generador `prisma-client-js`** (clásico) en vez del nuevo `prisma-client` | El generador nuevo de Prisma 7 emite ESM y choca con el CommonJS de NestJS; el clásico se importa desde `@prisma/client` sin fricción | Backend |
 | 2026-06-12 | Cliente Prisma con **driver adapter `@prisma/adapter-pg`** | Prisma 7 ya no admite la URL en `schema.prisma`; el cliente en runtime requiere un adapter que recibe la cadena de conexión | `PrismaService` |
-| 2026-06-12 | `schoolId` **opcional** en `User` | El rol `SUPER_ADMIN` es de plataforma y no pertenece a ningún colegio; email único por `[schoolId, email]` | Modelo `User` |
+| 2026-06-13 | `schoolId` **obligatorio** en `User` (antes opcional) | Al quitar `SUPER_ADMIN`, todo usuario pertenece a un colegio; simplifica el aislamiento multi-tenant. Email único por `[schoolId, email]` | Modelo `User` |
 | 2026-06-12 | **`@nestjs/config`** para cargar variables de entorno | NestJS no lee `.env` por sí solo; se centraliza la configuración de forma global | Backend |
 | 2026-06-12 | Hash de contraseñas con **`bcryptjs`** (no `bcrypt` nativo) | El `bcrypt` nativo compila binarios con node-gyp, problemático en Windows + pnpm; `bcryptjs` es el mismo algoritmo en JS puro, sin compilación | `AuthService`, seed |
-| 2026-06-12 | Autenticación con **JWT access token** (expiración corta, 15 min) + **Passport** | Stateless y estándar; el plan pide JWT. Los refresh tokens se añaden en el siguiente bloque | Módulo `auth` |
+| 2026-06-12 | Autenticación con **JWT access token** (expiración corta, 15 min) + **Passport** | Stateless y estándar; el plan pide JWT | Módulo `auth` |
+| 2026-06-13 | **Refresh tokens** (JWT de 7 días, secreto propio) con **jti guardado en Redis** | Permite renovar la sesión sin reloguear, y rotar/revocar tokens (logout y anti-reuso). El TTL en Redis se calcula del `exp` del token | Módulo `auth`, `RedisService` |
+| 2026-06-13 | Cliente de Redis con **`ioredis`** | Cliente robusto y estándar; compatible con BullMQ (que se usará más adelante) | `RedisModule` |
+| 2026-06-13 | **RBAC** con decorador `@Roles` + `RolesGuard` (lee el rol del JWT) y `@CurrentUser` | Autorización declarativa por ruta; 403 si el rol no coincide. Separa 401 (sin identidad) de 403 (sin permiso) | Módulo `auth` |
+| 2026-06-13 | Patrón **multi-tenant explícito**: cada servicio recibe el `schoolId` del token y filtra por él | Aislamiento simple y verificable sin magia oculta; el `schoolId` nunca viene del cliente. Convención para todos los módulos futuros | `UsersService` y siguientes |
 | 2026-06-12 | Login por **email** (no por "usuario") | El modelo `User` identifica por email; alinea con el plan (email/contraseña). El campo del formulario pasó a "Correo electrónico" | Login (front y back) |
 | 2026-06-12 | **Validación global** con `class-validator` + `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`) | Rechaza cuerpos malformados o con campos de más; buena práctica de seguridad (OWASP) | Todas las rutas |
 | 2026-06-12 | **CORS** habilitado para orígenes locales (`:5173`, `:3000`) | El frontend (Vite) y la API están en puertos distintos; el navegador exige CORS | `main.ts` |
@@ -212,18 +229,18 @@ Aún no hay router (React Router) ni más vistas (el dashboard llega en la Fase 
 | Fecha | Cambio | Razón | ¿Documento de proyecto actualizado? |
 |---|---|---|---|
 | 2026-06-09 | **React 18 → React 19** en el frontend | `create vite` instala React 19 por defecto; es la versión estable actual y recomendada | ✅ Sí (sección 7.2) |
+| 2026-06-13 | **Roles reducidos a 3** (ADMIN, TEACHER, STUDENT); se posponen SUPER_ADMIN y GUARDIAN | Decisión del producto: empezar con lo esencial. SUPER_ADMIN llegará en la Fase 4 (SaaS) y GUARDIAN en la Fase 2 (apoderados) | ⬜ Pendiente |
 
 ---
 
 ## 7. Pendientes y próximos pasos
 
-**Inmediato:**
-1. Inicializar el repositorio Git (recordar la política de commits: sin referencias a IA, mensajes que describan la funcionalidad).
-2. Decidir y montar la estructura del monorepo (backend + frontend).
-3. Configurar entorno de desarrollo (Node, Docker, variables de entorno).
+**Inmediato (para cerrar la Fase 0):**
+1. CI/CD (GitHub Actions) + linters comunes en el monorepo.
+2. (Frontend) Router + dashboard protegido + cerrar sesión; renovación automática del access token con el refresh token.
 
-**Backlog cercano:**
-- _por definir_
+**Backlog cercano (inicio de Fase 1 — dominio):**
+- Modelar y exponer las primeras entidades académicas (año escolar, grados, secciones), siguiendo el patrón multi-tenant (filtrar por `schoolId`).
 
 ---
 
@@ -233,6 +250,7 @@ Aún no hay router (React Router) ni más vistas (el dashboard llega en la Fase 
 
 | Fecha | Avance | Fase / Paso |
 |---|---|---|
+| 2026-06-13 | **Autenticación completa:** refresh tokens (7 días) con rotación y revocación en Redis (`/auth/refresh`, `/auth/logout`); RBAC con `@Roles`/`RolesGuard`/`@CurrentUser`; roles reducidos a ADMIN/TEACHER/STUDENT y `schoolId` obligatorio; módulo `users` con `GET /users` filtrado por colegio. Aislamiento multi-tenant verificado con dos colegios (Demo y Norte): ningún colegio ve datos del otro, profesor recibe 403, no se expone `passwordHash`. | Fase 0 — Fundaciones |
 | 2026-06-12 | **Autenticación (login funcional end-to-end):** módulo `auth` con JWT access token (15 min) + Passport; hash con `bcryptjs`; rutas `POST /auth/login` y `GET /auth/me` (protegida); validación global y CORS; seed con un colegio y un admin de prueba (`admin@demo.skoolar` / `admin1234`). Frontend: `Login.tsx` conectado a la API vía `src/lib/api.ts`, con estados de carga/error/éxito. Verificado: login OK, 401 con credenciales inválidas, 400 por validación, y CORS desde el origen del navegador. | Fase 0 — Fundaciones |
 | 2026-06-12 | **Capa de datos completa:** `docker-compose.yml` con PostgreSQL 16 (host `:5433`) y Redis 7; Prisma 7 instalado y conectado a NestJS vía `PrismaService` (adapter pg); primera migración con modelos `School` y `User`; endpoint `/health` verificado consultando la BD (`{status:ok, database:connected, schools:0}`). | Fase 0 — Fundaciones |
 | 2026-06-09 | Tailwind CSS v4 configurado y primera pantalla real: **login** (`src/pages/Login.tsx`) con layout 2/6 (formulario) y 4/6 (imagen de la institución), a pantalla completa sin scroll. Imagen placeholder en `assets/institucion.svg`. | Fase 0 — Fundaciones |
