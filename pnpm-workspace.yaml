@@ -6,5 +6,6 @@ packages:
 # pnpm los bloquea por defecto como protección contra cadena de suministro.
 allowBuilds:
   '@prisma/engines': true
+  esbuild: true
   prisma: true
   unrs-resolver: true
