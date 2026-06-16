@@ -1,3 +1,10 @@
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+} from './tokens'
+
 // Cliente mínimo para hablar con la API de Skoolar (apps/api).
 // La URL base se puede sobreescribir con la variable de entorno VITE_API_URL.
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -75,4 +82,59 @@ export async function logout(refreshToken: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
   })
+}
+
+// Usuario de la sesión, tal y como viaja dentro del JWT (lo devuelve GET /auth/me).
+export interface SessionUser {
+  sub: string
+  email: string
+  role: string
+  schoolId: string
+}
+
+// Intenta renovar el access token con el refresh token guardado.
+// Devuelve true si lo consiguió (y deja los tokens nuevos guardados).
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return false
+  try {
+    const data = await refresh(refreshToken)
+    setTokens(data.accessToken, data.refreshToken)
+    return true
+  } catch {
+    clearTokens()
+    return false
+  }
+}
+
+// fetch autenticado: adjunta el access token y, si la API responde 401,
+// intenta renovar el token una vez y reintenta la petición automáticamente.
+export async function apiFetch(
+  path: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const withAuth = (token: string | null): RequestInit => ({
+    ...options,
+    headers: {
+      ...options.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  let res = await fetch(`${API_URL}${path}`, withAuth(getAccessToken()))
+
+  if (res.status === 401 && (await tryRefresh())) {
+    res = await fetch(`${API_URL}${path}`, withAuth(getAccessToken()))
+  }
+
+  return res
+}
+
+// Devuelve el usuario de la sesión actual (valida el token contra el backend).
+export async function getMe(): Promise<SessionUser> {
+  const res = await apiFetch('/auth/me')
+  if (!res.ok) {
+    throw new ApiError('No hay sesión activa.', res.status)
+  }
+  return res.json() as Promise<SessionUser>
 }

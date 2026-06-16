@@ -33,8 +33,8 @@
 | Indicador | Valor |
 |---|---|
 | Fase en curso | Fase 0 — Fundaciones |
-| Paso actual | Autenticación completa: login con access + refresh tokens (rotación en Redis), RBAC por rol y aislamiento multi-tenant verificado. Siguiente: CI/CD + linters para cerrar la Fase 0, o empezar la Fase 1 (dominio) |
-| % avance global estimado | ~32% |
+| Paso actual | Esqueleto del frontend listo: React Router, sesión persistente con renovación automática, rutas protegidas por rol y layout de admin (menú + cerrar sesión). Siguiente: primer módulo de dominio, **Año escolar** (CRUD admin) |
+| % avance global estimado | ~38% |
 | Repositorio inicializado | ✅ Sí (rama `main`) |
 | Estructura monorepo (pnpm workspaces) | ✅ Sí |
 | Backend NestJS (`apps/api`) | ✅ Sí (responde en `localhost:3000`) |
@@ -82,7 +82,8 @@
   - ✅ Seed: dos colegios (`Colegio Demo` con un usuario por rol, `Colegio Norte` para probar aislamiento)
   - ⬜ Seeds realistas (alumnos, cursos, notas…) cuando exista el dominio
 
-### Fase 1 — Núcleo Académico / MVP · ⬜ No iniciada
+### Fase 1 — Núcleo Académico / MVP · 🟡 En progreso
+- 🟡 Frontend: esqueleto de la app (React Router, sesión, rutas por rol, layout de admin) ✅; vistas de dominio pendientes
 - ⬜ CRUD: colegio, años, periodos, grados, secciones, cursos, asignación docente
 - ⬜ Gestión de alumnos + matrícula + carga masiva CSV
 - ⬜ Registro de notas (grilla docente) con tipos de evaluación y pesos
@@ -157,12 +158,23 @@ skoolar/
 │   │   └── package.json
 │   └── web/           Frontend React + Vite (@skoolar/web)
 │       ├── src/
-│       │   ├── main.tsx           Punto de entrada (monta React en #root)
-│       │   ├── App.tsx            Componente raíz (renderiza Login)
+│       │   ├── main.tsx           Entrada: BrowserRouter + AuthProvider
+│       │   ├── App.tsx            Definición de rutas (router)
+│       │   ├── auth/
+│       │   │   ├── auth-context.ts     Contexto de sesión + hook useAuth
+│       │   │   ├── AuthProvider.tsx    Estado de sesión (login/logout/bootstrap)
+│       │   │   ├── ProtectedRoute.tsx  Protege rutas por sesión y rol
+│       │   │   └── roles.ts            Mapa rol → ruta de inicio
+│       │   ├── layouts/
+│       │   │   └── AdminLayout.tsx     Menú lateral + barra + cerrar sesión
 │       │   ├── pages/
-│       │   │   └── Login.tsx      Login conectado a la API (JWT)
+│       │   │   ├── Login.tsx           Login (redirige según rol)
+│       │   │   ├── admin/Dashboard.tsx Panel del admin
+│       │   │   ├── RolePlaceholder.tsx Vista provisional (profesor/alumno)
+│       │   │   └── NotFound.tsx        Página 404
 │       │   ├── lib/
-│       │   │   └── api.ts         Cliente de la API (login, refresh, logout)
+│       │   │   ├── api.ts          Cliente API (login, refresh, logout, apiFetch)
+│       │   │   └── tokens.ts       Tokens en localStorage
 │       │   ├── index.css          Importa Tailwind + reset a pantalla completa
 │       │   └── assets/
 │       │       └── institucion.svg  Imagen placeholder de la institución
@@ -185,10 +197,13 @@ skoolar/
 
 **Módulos backend (NestJS) implementados:** `AppModule` (raíz), `PrismaModule` y `RedisModule` (globales), `AuthModule` (login + tokens + RBAC) y `UsersModule` (listado por colegio). Rutas: `GET /` y `/health`; auth → `POST /auth/login`, `/auth/refresh`, `/auth/logout` (públicos), `GET /auth/me` (autenticado), `GET /auth/admin-only` (solo ADMIN); usuarios → `GET /users` (ADMIN, filtrado por `schoolId`). Los módulos de dominio (alumnos, notas, etc.) aún no existen.
 
-**Vistas / rutas frontend (React) implementadas:**
-- **Login** (`src/pages/Login.tsx`): pantalla de inicio de sesión a pantalla completa, rejilla de 6 columnas → formulario (correo, contraseña, botón "Ingresar", enlace "¿Olvidó su contraseña?") en 2/6 a la izquierda e imagen de la institución en 4/6 a la derecha. **Conectado al backend**: llama a `POST /auth/login` (vía `src/lib/api.ts`), guarda el access y el refresh token en `localStorage` y muestra estados de carga, error y éxito. Como aún no hay dashboard ni router, al iniciar sesión muestra un saludo provisional.
+**Vistas / rutas frontend (React) implementadas:** ya hay **React Router** y sesión persistente.
+- **`/login`** (`pages/Login.tsx`): formulario correo/contraseña; al entrar redirige a la zona del rol. Si ya hay sesión, salta directo a ella.
+- **`/admin`** (protegida, rol ADMIN): `AdminLayout` (menú lateral + barra con correo y cerrar sesión) con el panel `admin/Dashboard.tsx` como página inicial.
+- **`/profesor`** y **`/alumno`** (protegidas por su rol): vistas provisionales (`RolePlaceholder`) que se construirán más adelante.
+- **`/`** redirige a `/login`; cualquier otra ruta muestra `NotFound` (404).
 
-Aún no hay router (React Router) ni más vistas (el dashboard llega en la Fase 1).
+**Sesión (frontend):** `AuthProvider` mantiene el usuario; al cargar la app recupera la sesión desde los tokens (`GET /auth/me`). `apiFetch` adjunta el access token y, si recibe 401, **renueva automáticamente** con el refresh token y reintenta. `ProtectedRoute` bloquea por sesión y por rol.
 
 ---
 
@@ -215,6 +230,9 @@ Aún no hay router (React Router) ni más vistas (el dashboard llega en la Fase 
 | 2026-06-13 | Cliente de Redis con **`ioredis`** | Cliente robusto y estándar; compatible con BullMQ (que se usará más adelante) | `RedisModule` |
 | 2026-06-13 | **RBAC** con decorador `@Roles` + `RolesGuard` (lee el rol del JWT) y `@CurrentUser` | Autorización declarativa por ruta; 403 si el rol no coincide. Separa 401 (sin identidad) de 403 (sin permiso) | Módulo `auth` |
 | 2026-06-13 | Patrón **multi-tenant explícito**: cada servicio recibe el `schoolId` del token y filtra por él | Aislamiento simple y verificable sin magia oculta; el `schoolId` nunca viene del cliente. Convención para todos los módulos futuros | `UsersService` y siguientes |
+| 2026-06-13 | **React Router** + contexto de sesión (`AuthProvider`/`useAuth`) + rutas protegidas por rol | Cada rol va a su zona (`/admin`, `/profesor`, `/alumno`); base navegable para todas las vistas | Frontend |
+| 2026-06-13 | **Renovación automática del token** en el cliente (`apiFetch`: ante un 401 renueva con el refresh token y reintenta) | La sesión no se corta a los 15 min sin que el usuario lo note | Frontend |
+| 2026-06-13 | Contexto y hook en archivos separados (`auth-context.ts`) del proveedor (`AuthProvider.tsx`) | Cumple la regla de *fast refresh* de React (un archivo no mezcla componente y no-componente); mantiene el lint verde | Frontend |
 | 2026-06-12 | Login por **email** (no por "usuario") | El modelo `User` identifica por email; alinea con el plan (email/contraseña). El campo del formulario pasó a "Correo electrónico" | Login (front y back) |
 | 2026-06-12 | **Validación global** con `class-validator` + `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`) | Rechaza cuerpos malformados o con campos de más; buena práctica de seguridad (OWASP) | Todas las rutas |
 | 2026-06-12 | **CORS** habilitado para orígenes locales (`:5173`, `:3000`) | El frontend (Vite) y la API están en puertos distintos; el navegador exige CORS | `main.ts` |
@@ -250,6 +268,7 @@ Aún no hay router (React Router) ni más vistas (el dashboard llega en la Fase 
 
 | Fecha | Avance | Fase / Paso |
 |---|---|---|
+| 2026-06-13 | **Esqueleto del frontend (Fase 1):** React Router con rutas protegidas por rol, `AuthProvider` (sesión persistente vía `GET /auth/me` y renovación automática del token), layout de admin (menú lateral + barra + cerrar sesión), panel inicial y vistas provisionales para profesor/alumno. Login refactorizado para redirigir según el rol. Lint y build en verde. | Fase 1 — Núcleo Académico |
 | 2026-06-13 | **Autenticación completa:** refresh tokens (7 días) con rotación y revocación en Redis (`/auth/refresh`, `/auth/logout`); RBAC con `@Roles`/`RolesGuard`/`@CurrentUser`; roles reducidos a ADMIN/TEACHER/STUDENT y `schoolId` obligatorio; módulo `users` con `GET /users` filtrado por colegio. Aislamiento multi-tenant verificado con dos colegios (Demo y Norte): ningún colegio ve datos del otro, profesor recibe 403, no se expone `passwordHash`. | Fase 0 — Fundaciones |
 | 2026-06-12 | **Autenticación (login funcional end-to-end):** módulo `auth` con JWT access token (15 min) + Passport; hash con `bcryptjs`; rutas `POST /auth/login` y `GET /auth/me` (protegida); validación global y CORS; seed con un colegio y un admin de prueba (`admin@demo.skoolar` / `admin1234`). Frontend: `Login.tsx` conectado a la API vía `src/lib/api.ts`, con estados de carga/error/éxito. Verificado: login OK, 401 con credenciales inválidas, 400 por validación, y CORS desde el origen del navegador. | Fase 0 — Fundaciones |
 | 2026-06-12 | **Capa de datos completa:** `docker-compose.yml` con PostgreSQL 16 (host `:5433`) y Redis 7; Prisma 7 instalado y conectado a NestJS vía `PrismaService` (adapter pg); primera migración con modelos `School` y `User`; endpoint `/health` verificado consultando la BD (`{status:ok, database:connected, schools:0}`). | Fase 0 — Fundaciones |
