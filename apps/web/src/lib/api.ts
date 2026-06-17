@@ -138,3 +138,65 @@ export async function getMe(): Promise<SessionUser> {
   }
   return res.json() as Promise<SessionUser>
 }
+
+// Extrae un mensaje de error legible del cuerpo de una respuesta fallida.
+// El backend devuelve { message: string | string[] }.
+async function errorFrom(res: Response): Promise<ApiError> {
+  let message = 'Ocurrió un error. Inténtalo de nuevo.'
+  try {
+    const body = (await res.json()) as { message?: string | string[] }
+    if (Array.isArray(body.message)) message = body.message.join(' ')
+    else if (body.message) message = body.message
+  } catch {
+    // respuesta sin cuerpo JSON: dejamos el mensaje genérico
+  }
+  return new ApiError(message, res.status)
+}
+
+// --- Años escolares (Año escolar / AcademicYear) ---
+
+export interface AcademicYear {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  isActive: boolean
+}
+
+export interface AcademicYearInput {
+  name: string
+  startDate: string
+  endDate: string
+  isActive?: boolean
+}
+
+export async function listAcademicYears(): Promise<AcademicYear[]> {
+  const res = await apiFetch('/academic-years')
+  if (!res.ok) throw await errorFrom(res)
+  return res.json() as Promise<AcademicYear[]>
+}
+
+export async function createAcademicYear(
+  input: AcademicYearInput,
+): Promise<AcademicYear> {
+  const res = await apiFetch('/academic-years', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw await errorFrom(res)
+  return res.json() as Promise<AcademicYear>
+}
+
+export async function activateAcademicYear(id: string): Promise<AcademicYear> {
+  const res = await apiFetch(`/academic-years/${id}/activate`, {
+    method: 'PATCH',
+  })
+  if (!res.ok) throw await errorFrom(res)
+  return res.json() as Promise<AcademicYear>
+}
+
+export async function deleteAcademicYear(id: string): Promise<void> {
+  const res = await apiFetch(`/academic-years/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw await errorFrom(res)
+}

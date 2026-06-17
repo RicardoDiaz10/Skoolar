@@ -44,9 +44,30 @@ model School {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users User[]
+  users         User[]
+  academicYears AcademicYear[]
 
   @@map("schools")
+}
+
+// Año escolar (ciclo lectivo) de un colegio. Es la raíz de la estructura
+// académica: de él colgarán periodos, grados, secciones, matrículas, etc.
+model AcademicYear {
+  id        String   @id @default(uuid())
+  schoolId  String // Tenant (colegio) al que pertenece el año escolar.
+  name      String // Nombre visible, p. ej. "2026".
+  startDate DateTime // Inicio del ciclo.
+  endDate   DateTime // Fin del ciclo.
+  isActive  Boolean  @default(false) // Marca el año en curso del colegio.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // El nombre del año es único dentro de cada colegio.
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("academic_years")
 }
 
 // User = cualquier persona que inicia sesión, con su rol y su colegio.

@@ -33,8 +33,8 @@
 | Indicador | Valor |
 |---|---|
 | Fase en curso | Fase 0 — Fundaciones |
-| Paso actual | Esqueleto del frontend listo: React Router, sesión persistente con renovación automática, rutas protegidas por rol y layout de admin (menú + cerrar sesión). Siguiente: primer módulo de dominio, **Año escolar** (CRUD admin) |
-| % avance global estimado | ~38% |
+| Paso actual | Primer módulo de dominio terminado: **Año escolar** (CRUD admin, tenant-scoped, con año activo único) — backend + pantalla. Siguiente: grados y secciones |
+| % avance global estimado | ~42% |
 | Repositorio inicializado | ✅ Sí (rama `main`) |
 | Estructura monorepo (pnpm workspaces) | ✅ Sí |
 | Backend NestJS (`apps/api`) | ✅ Sí (responde en `localhost:3000`) |
@@ -83,8 +83,10 @@
   - ⬜ Seeds realistas (alumnos, cursos, notas…) cuando exista el dominio
 
 ### Fase 1 — Núcleo Académico / MVP · 🟡 En progreso
-- 🟡 Frontend: esqueleto de la app (React Router, sesión, rutas por rol, layout de admin) ✅; vistas de dominio pendientes
-- ⬜ CRUD: colegio, años, periodos, grados, secciones, cursos, asignación docente
+- ✅ Frontend: esqueleto de la app (React Router, sesión, rutas por rol, layout de admin)
+- 🟡 CRUD: colegio, años, periodos, grados, secciones, cursos, asignación docente
+  - ✅ **Año escolar** (`AcademicYear`): CRUD admin tenant-scoped, con año activo único; pantalla en el panel de admin
+  - ⬜ Periodos, grados, secciones, cursos, asignación docente
 - ⬜ Gestión de alumnos + matrícula + carga masiva CSV
 - ⬜ Registro de notas (grilla docente) con tipos de evaluación y pesos
 - ⬜ Cálculo de promedios y flujo de publicación
@@ -146,10 +148,15 @@ skoolar/
 │   │   │   │   ├── roles.decorator.ts    Decorador @Roles
 │   │   │   │   ├── current-user.decorator.ts  Decorador @CurrentUser
 │   │   │   │   └── dto/                  Validación de login y refresh
-│   │   │   └── users/
-│   │   │       ├── users.module.ts       Módulo de usuarios
-│   │   │       ├── users.controller.ts   GET /users (admin, por colegio)
-│   │   │       └── users.service.ts      Consulta filtrada por schoolId (multi-tenant)
+│   │   │   ├── users/
+│   │   │   │   ├── users.module.ts       Módulo de usuarios
+│   │   │   │   ├── users.controller.ts   GET /users (admin, por colegio)
+│   │   │   │   └── users.service.ts      Consulta filtrada por schoolId (multi-tenant)
+│   │   │   └── academic-years/
+│   │   │       ├── academic-years.module.ts      Módulo de años escolares
+│   │   │       ├── academic-years.controller.ts  CRUD /academic-years (admin)
+│   │   │       ├── academic-years.service.ts     Lógica tenant-scoped + año activo único
+│   │   │       └── dto/                          Validación de crear/actualizar
 │   │   ├── test/                  Pruebas e2e
 │   │   ├── prisma.config.ts       Config de Prisma 7 (URL de la BD vía dotenv)
 │   │   ├── .env / .env.example    Variables de entorno (la real no se versiona)
@@ -170,6 +177,7 @@ skoolar/
 │       │   ├── pages/
 │       │   │   ├── Login.tsx           Login (redirige según rol)
 │       │   │   ├── admin/Dashboard.tsx Panel del admin
+│       │   │   ├── admin/AcademicYears.tsx  Gestión de años escolares
 │       │   │   ├── RolePlaceholder.tsx Vista provisional (profesor/alumno)
 │       │   │   └── NotFound.tsx        Página 404
 │       │   ├── lib/
@@ -195,7 +203,7 @@ skoolar/
 └── Skoolar -Estado-Desarrollo.md
 ```
 
-**Módulos backend (NestJS) implementados:** `AppModule` (raíz), `PrismaModule` y `RedisModule` (globales), `AuthModule` (login + tokens + RBAC) y `UsersModule` (listado por colegio). Rutas: `GET /` y `/health`; auth → `POST /auth/login`, `/auth/refresh`, `/auth/logout` (públicos), `GET /auth/me` (autenticado), `GET /auth/admin-only` (solo ADMIN); usuarios → `GET /users` (ADMIN, filtrado por `schoolId`). Los módulos de dominio (alumnos, notas, etc.) aún no existen.
+**Módulos backend (NestJS) implementados:** `AppModule` (raíz), `PrismaModule` y `RedisModule` (globales), `AuthModule` (login + tokens + RBAC), `UsersModule` (listado por colegio) y `AcademicYearsModule` (CRUD de años escolares). Rutas: `GET /` y `/health`; auth → `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me`, `GET /auth/admin-only`; usuarios → `GET /users` (ADMIN); años escolares → `POST/GET /academic-years`, `GET/PATCH/DELETE /academic-years/:id`, `PATCH /academic-years/:id/activate` (todo ADMIN, filtrado por `schoolId`). Resto del dominio (grados, cursos, alumnos, notas…) aún no existe.
 
 **Vistas / rutas frontend (React) implementadas:** ya hay **React Router** y sesión persistente.
 - **`/login`** (`pages/Login.tsx`): formulario correo/contraseña; al entrar redirige a la zona del rol. Si ya hay sesión, salta directo a ella.
@@ -233,6 +241,8 @@ skoolar/
 | 2026-06-13 | **React Router** + contexto de sesión (`AuthProvider`/`useAuth`) + rutas protegidas por rol | Cada rol va a su zona (`/admin`, `/profesor`, `/alumno`); base navegable para todas las vistas | Frontend |
 | 2026-06-13 | **Renovación automática del token** en el cliente (`apiFetch`: ante un 401 renueva con el refresh token y reintenta) | La sesión no se corta a los 15 min sin que el usuario lo note | Frontend |
 | 2026-06-13 | Contexto y hook en archivos separados (`auth-context.ts`) del proveedor (`AuthProvider.tsx`) | Cumple la regla de *fast refresh* de React (un archivo no mezcla componente y no-componente); mantiene el lint verde | Frontend |
+| 2026-06-17 | **Año escolar activo único**: al crear/activar uno, se desactivan los demás del colegio (en transacción) | Un colegio tiene un solo ciclo en curso; evita ambigüedad en el resto del dominio | `AcademicYearsService` |
+| 2026-06-17 | Tras `prisma migrate dev` hay que ejecutar `prisma generate` y **reiniciar** el backend en watch | En este proyecto migrate no regenera el cliente solo, y `tsc --watch` no relee `node_modules`; sin reiniciar, los modelos nuevos no se ven | Flujo de desarrollo |
 | 2026-06-12 | Login por **email** (no por "usuario") | El modelo `User` identifica por email; alinea con el plan (email/contraseña). El campo del formulario pasó a "Correo electrónico" | Login (front y back) |
 | 2026-06-12 | **Validación global** con `class-validator` + `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`) | Rechaza cuerpos malformados o con campos de más; buena práctica de seguridad (OWASP) | Todas las rutas |
 | 2026-06-12 | **CORS** habilitado para orígenes locales (`:5173`, `:3000`) | El frontend (Vite) y la API están en puertos distintos; el navegador exige CORS | `main.ts` |
@@ -268,6 +278,7 @@ skoolar/
 
 | Fecha | Avance | Fase / Paso |
 |---|---|---|
+| 2026-06-17 | **Módulo Año escolar (Fase 1):** modelo `AcademicYear` + migración; CRUD `AcademicYearsModule` solo ADMIN y filtrado por `schoolId`, con activación de un único año activo por colegio; pantalla del admin (lista + crear + activar + eliminar) y enlace en el menú. Verificado en backend: CRUD, validación de fechas (400), nombre duplicado (409), rol no-admin (403) y aislamiento entre colegios. | Fase 1 — Núcleo Académico |
 | 2026-06-13 | **Esqueleto del frontend (Fase 1):** React Router con rutas protegidas por rol, `AuthProvider` (sesión persistente vía `GET /auth/me` y renovación automática del token), layout de admin (menú lateral + barra + cerrar sesión), panel inicial y vistas provisionales para profesor/alumno. Login refactorizado para redirigir según el rol. Lint y build en verde. | Fase 1 — Núcleo Académico |
 | 2026-06-13 | **Autenticación completa:** refresh tokens (7 días) con rotación y revocación en Redis (`/auth/refresh`, `/auth/logout`); RBAC con `@Roles`/`RolesGuard`/`@CurrentUser`; roles reducidos a ADMIN/TEACHER/STUDENT y `schoolId` obligatorio; módulo `users` con `GET /users` filtrado por colegio. Aislamiento multi-tenant verificado con dos colegios (Demo y Norte): ningún colegio ve datos del otro, profesor recibe 403, no se expone `passwordHash`. | Fase 0 — Fundaciones |
 | 2026-06-12 | **Autenticación (login funcional end-to-end):** módulo `auth` con JWT access token (15 min) + Passport; hash con `bcryptjs`; rutas `POST /auth/login` y `GET /auth/me` (protegida); validación global y CORS; seed con un colegio y un admin de prueba (`admin@demo.skoolar` / `admin1234`). Frontend: `Login.tsx` conectado a la API vía `src/lib/api.ts`, con estados de carga/error/éxito. Verificado: login OK, 401 con credenciales inválidas, 400 por validación, y CORS desde el origen del navegador. | Fase 0 — Fundaciones |

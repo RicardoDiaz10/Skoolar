@@ -3,7 +3,10 @@ import { useAuth } from '../auth/auth-context'
 
 // Opciones del menú lateral del admin. Por ahora solo el panel; las secciones
 // (año escolar, grados, cursos…) se irán añadiendo en los siguientes módulos.
-const navItems = [{ to: '/admin', label: 'Panel', end: true }]
+const navItems = [
+  { to: '/admin', label: 'Panel', end: true },
+  { to: '/admin/anios-escolares', label: 'Años escolares', end: false },
+]
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import AdminLayout from './layouts/AdminLayout'
+import AcademicYears from './pages/admin/AcademicYears'
 import AdminDashboard from './pages/admin/Dashboard'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
@@ -22,6 +23,7 @@ function App() {
         }
       >
         <Route index element={<AdminDashboard />} />
+        <Route path="anios-escolares" element={<AcademicYears />} />
       </Route>
 
       {/* Zonas de profesor y alumno (provisionales) */}
